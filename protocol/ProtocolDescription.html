@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Protocol Description</title>
+        <style>
+</style>
+        
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item { list-style-type: none; } .task-list-item-checkbox { margin-left: -20px; vertical-align: middle; }
+</style>
+        
+        
+        
+    </head>
+    <body class="vscode-body vscode-light">
+        <h1 id="protocol-description">Protocol Description</h1>
+<p>This document defines software protocol to be used in communication between ROS Automated Crane (RAC) server program and end user interfaces. Designed to be working with any underlying protocols (atleast TCP and UDP).</p>
+<ul>
+<li><a href="#protocol-description">Protocol Description</a>
+<ul>
+<li><a href="#message-structure">Message structure</a></li>
+<li><a href="#checksum-calculation">Checksum calculation</a></li>
+<li><a href="#message-types">Message types</a></li>
+<li><a href="#data-types">Data types</a></li>
+<li><a href="#list-of-available-messages">List of available messages</a>
+<ul>
+<li><a href="#set-user-login-setusr"><strong>Set User (Login): SETUSR</strong></a>
+<ul>
+<li><a href="#answer-to-setusr"><span style="color:red">Answer to SETUSR</span></a></li>
+</ul>
+</li>
+<li><a href="#request-crane-state-reqcst"><strong>Request crane state: REQCST</strong></a>
+<ul>
+<li><a href="#answer-to-reqcst"><span style="color:red">Answer to REQCST</span></a></li>
+</ul>
+</li>
+<li><a href="#request-new-endpoint-reqept"><strong>Request new endpoint: REQEPT</strong></a>
+<ul>
+<li><a href="#answer-to-reqept"><span style="color:red">Answer to REQEPT</span></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="message-structure">Message structure</h2>
+<p>Every message from client or server starts with four start of text character (0x02 0x02 0x02 0x02), data length (four bytes, unsigned int), data bytes (data length bytes) and checksum (XOR of all bytes in the message excluding checksum byte):</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:right">02 02 02 02</th>
+<th style="text-align:right">00 00 00 06</th>
+<th style="text-align:right">52 45 51 48 4d 50 (REQHMP)</th>
+<th style="text-align:right">21</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right">Start of message</td>
+<td style="text-align:right">data length</td>
+<td style="text-align:right">data</td>
+<td style="text-align:right">checksum (CRC8 (XOR) of message bytes)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="checksum-calculation">Checksum calculation</h2>
+<p>Checksum is calculated by performing XOR operation for each byte in the message.
+An example in C++ language:</p>
+<pre><code class="language-cpp"><div><span class="hljs-keyword">char</span> cs = <span class="hljs-number">0x00</span>;
+<span class="hljs-keyword">for</span>(<span class="hljs-keyword">int</span> i=<span class="hljs-number">0</span>;i&lt;data_length;i++)
+{
+    cs ^= data[i]; 
+}
+cs = cs &amp; <span class="hljs-number">0xFF</span>;
+</div></code></pre>
+<h2 id="message-types">Message types</h2>
+<p>Every message has a type. Type is indicated in every message by three first characters of the data field of the message. Available message types are presented in the following table.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Type</th>
+<th style="text-align:left">Identifier</th>
+<th style="text-align:left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Request</td>
+<td style="text-align:left">REQ</td>
+<td style="text-align:left">Used for requesting different types of data. Only client may request data. Server will never send Request message</td>
+</tr>
+<tr>
+<td style="text-align:left">Answer</td>
+<td style="text-align:left">ANS</td>
+<td style="text-align:left">This message type will be used when answering a request. Request message will always be followed by an Answer message or an Error message.</td>
+</tr>
+<tr>
+<td style="text-align:left">Set</td>
+<td style="text-align:left">SET</td>
+<td style="text-align:left">This message type is used to set data on server. Server will never send a Set message.</td>
+</tr>
+<tr>
+<td style="text-align:left">Error</td>
+<td style="text-align:left">ERR</td>
+<td style="text-align:left">This message type will be used to indicate that an error has occurred.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="data-types">Data types</h2>
+<p>Every message has a data type. This will be written in bytes 4-6 of the data field. Messages utilizing these data types are described in more detail later on in this document. Available data types are presented in the following table.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Type</th>
+<th style="text-align:left">Identifier</th>
+<th style="text-align:left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Heightmap</td>
+<td style="text-align:left">HMP</td>
+<td style="text-align:left">Client may only request heightmap from the server. The server will answer with heightmap data (format described in detail later in this document) or with an error message.</td>
+</tr>
+<tr>
+<td style="text-align:left">Crane state</td>
+<td style="text-align:left">CST</td>
+<td style="text-align:left">Client may request full  state of the crane (jib orientation, trolley distance, ...) from the server.</td>
+</tr>
+<tr>
+<td style="text-align:left">Endpoint</td>
+<td style="text-align:left">EPT</td>
+<td style="text-align:left">Client may request the crane to move to a certain point.</td>
+</tr>
+<tr>
+<td style="text-align:left">Crane command</td>
+<td style="text-align:left">CMD</td>
+<td style="text-align:left">Client may send movement commands to the crane for manual operation.</td>
+</tr>
+<tr>
+<td style="text-align:left">Planned path</td>
+<td style="text-align:left">PTH</td>
+<td style="text-align:left">Client may only request planned path from the server. The server will answer with planned path data.</td>
+</tr>
+<tr>
+<td style="text-align:left">User</td>
+<td style="text-align:left">USR</td>
+<td style="text-align:left">Client has to login to enable certain functionalities through the interface.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="list-of-available-messages">List of available messages</h2>
+<p>Here is a list of <strong>All</strong> available messages in the protocol interface. Tables below describes content of the data part of the message.</p>
+<h3 id="set-user-login-setusr"><strong>Set User (Login): SETUSR</strong></h3>
+<p>Client sends this message to the server when it wishes to start a session on the server. Server receives this message, compares username and password to known users with a key, and send answer back to client. <strong>Note:</strong> password must be encrypted with a key.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Message part</th>
+<th style="text-align:left">Description</th>
+<th style="text-align:left">Length</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Type of message</td>
+<td style="text-align:left">Always SET</td>
+<td style="text-align:left">3 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Type of data</td>
+<td style="text-align:left">Always USR</td>
+<td style="text-align:left">3 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Length of username</td>
+<td style="text-align:left">Uint8 value</td>
+<td style="text-align:left">1 byte (limits lenght of username to 255 bytes)</td>
+</tr>
+<tr>
+<td style="text-align:left">User name</td>
+<td style="text-align:left">username</td>
+<td style="text-align:left">Read from ”Length of username” field</td>
+</tr>
+<tr>
+<td style="text-align:left">Length of encryptedpassword</td>
+<td style="text-align:left">Uint8 value</td>
+<td style="text-align:left">1 byte</td>
+</tr>
+<tr>
+<td style="text-align:left">Password</td>
+<td style="text-align:left">encrypted password</td>
+<td style="text-align:left">Read from ”Lenght of password” field</td>
+</tr>
+</tbody>
+</table>
+<h4 id="answer-to-setusr"><span style="color:red">Answer to SETUSR</span></h4>
+<p>Server sends answer based on if the user was authorized or not. if login was unsuccesful (wrong username and/or password) the sessionID is zero. If login was succesful server generated an unique sessionID for the client to use in many (almost all) other messages.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Message part</th>
+<th style="text-align:left">Description</th>
+<th style="text-align:left">Length</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Type of message</td>
+<td style="text-align:left">Always ANS</td>
+<td style="text-align:left">3 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Type of data</td>
+<td style="text-align:left">Always USR</td>
+<td style="text-align:left">3 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">SessionID</td>
+<td style="text-align:left">Uint64 value</td>
+<td style="text-align:left">8 bytes</td>
+</tr>
+</tbody>
+</table>
+<h3 id="request-crane-state-reqcst"><strong>Request crane state: REQCST</strong></h3>
+<p>Client sends this message to server when it wishes to request state of the crane. Crane state includes the values presented in the following table</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Message part</th>
+<th style="text-align:left">Description</th>
+<th style="text-align:left">Length</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Type of message</td>
+<td style="text-align:left">Always REQ</td>
+<td style="text-align:left">3 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Type of data</td>
+<td style="text-align:left">Always CST</td>
+<td style="text-align:left">3 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">SessionID (received from server)</td>
+<td style="text-align:left">Uint64 value</td>
+<td style="text-align:left">8 bytes</td>
+</tr>
+</tbody>
+</table>
+<h4 id="answer-to-reqcst"><span style="color:red">Answer to REQCST</span></h4>
+<p>Server sends answer back to the client if the sessionID was found to be valid (session have been started). The trolley- and hook positions are presented in carteasian coordinate system relative to the crane (origin at crane base) with positive x-direction pointing East, positive y-direction pointing North and positive z-direction pointing upwards. Jib orientation may be derived from trolley position with trivial geometric functions.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Message  part</th>
+<th style="text-align:left">Description</th>
+<th style="text-align:left">Length</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Type of message</td>
+<td style="text-align:left">Always ANS</td>
+<td style="text-align:left">3 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Type of data</td>
+<td style="text-align:left">Always CST</td>
+<td style="text-align:left">3 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Centerpoint lat coordinate</td>
+<td style="text-align:left">double floating point value</td>
+<td style="text-align:left">8 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Centerpoint lon coordinate</td>
+<td style="text-align:left">double floating point value</td>
+<td style="text-align:left">8 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Tower height</td>
+<td style="text-align:left">single floating point value</td>
+<td style="text-align:left">4 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Jib length</td>
+<td style="text-align:left">single floating point value</td>
+<td style="text-align:left">4 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Counter-Jib length</td>
+<td style="text-align:left">single floating point value</td>
+<td style="text-align:left">4 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Trolley position x (meters)</td>
+<td style="text-align:left">single floating point value</td>
+<td style="text-align:left">4 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Trolley position y (meters)</td>
+<td style="text-align:left">single floating point value</td>
+<td style="text-align:left">4 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Trolley position z (meters)</td>
+<td style="text-align:left">single floating point value</td>
+<td style="text-align:left">4 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Hook position x (meters)</td>
+<td style="text-align:left">single floating point value</td>
+<td style="text-align:left">4 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Hook position y (meters)</td>
+<td style="text-align:left">single floating point value</td>
+<td style="text-align:left">4 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Hook position z (meters)</td>
+<td style="text-align:left">single floating point value</td>
+<td style="text-align:left">4 bytes</td>
+</tr>
+</tbody>
+</table>
+<h3 id="request-new-endpoint-reqept"><strong>Request new endpoint: REQEPT</strong></h3>
+<p>Client may request the automated crane to move to a certain location.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Message part</th>
+<th style="text-align:left">Description</th>
+<th style="text-align:left">Length</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Type of message</td>
+<td style="text-align:left">Always REQ</td>
+<td style="text-align:left">3 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Type of data</td>
+<td style="text-align:left">Always EPT</td>
+<td style="text-align:left">3 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">SessionID (received from server)</td>
+<td style="text-align:left">Uint64 value</td>
+<td style="text-align:left">8 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">endpoint lat coordinate</td>
+<td style="text-align:left">double floating point value</td>
+<td style="text-align:left">8 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">endpoint lon coordinate</td>
+<td style="text-align:left">double floating point value</td>
+<td style="text-align:left">8 bytes</td>
+</tr>
+</tbody>
+</table>
+<h4 id="answer-to-reqept"><span style="color:red">Answer to REQEPT</span></h4>
+<p>Server sends back an anwer containing information if the location given has been succesully added to the queue of targetpoints to go to</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Message part</th>
+<th style="text-align:left">Description</th>
+<th style="text-align:left">Length</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Type of message</td>
+<td style="text-align:left">Always ANS</td>
+<td style="text-align:left">3 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Type of data</td>
+<td style="text-align:left">Always EPT</td>
+<td style="text-align:left">3 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Status</td>
+<td style="text-align:left">see description below</td>
+<td style="text-align:left">1 byte</td>
+</tr>
+</tbody>
+</table>
+<p>The status part of the message contains information on how the request was handled on the server. it may contain the following values:</p>
+<ul>
+<li>0: The endpoint was valid (inside the operational area of the crane) and was succesfully added to the target point queue.</li>
+<li>1: The endpoint was valid, but there were already too many target points in the queue</li>
+<li>2: The endpoint was not valid (too close to crane tower or too far, eg. outside the operational area of the crane)</li>
+</ul>
+
+    </body>
+    </html>
